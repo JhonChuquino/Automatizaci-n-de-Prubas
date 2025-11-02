@@ -1,0 +1,42 @@
+# Archivos de usuario
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Configuración local de VS
+.vs/
+.vscode/
+.idea/
+
+# Archivos temporales
+*.log
+*.tmp
+*.cache
+*.pdb
+*.tlog
+
+# Build results
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+[Ll]og/
+
+# Reportes y resultados de prueba
+TestResults/
+*.trx
+*.coverage
+*.Report/
+ExtentReports/
+
+# Archivos de paquetes o publish
+*.nupkg
+*.publish.xml
+
+# Archivos de sistema
+Thumbs.db
+ehthumbs.db
