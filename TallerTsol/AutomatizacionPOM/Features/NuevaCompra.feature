@@ -28,3 +28,4 @@ Feature: NuevaCompra
     Examples:
       | caso | proveedor | fecha | documento | serie | numero_doc | entrega | tipo_pago | tipo_compra | producto | cantidad_producto | importe_total | resultado |
       | 1 | 0000000 | 31/10/2025 | Factura electronica | 001 | 00001234 | Inmediata | CO | Exoneradas IGV | 88008-1 | 2 | 20.00 | la compra se genera correctamente |
+      | 2 | 0000001 | 03/10/2025 | Factura electronica | 002 | 00001234 | Diferida | CO | Exoneradas IGV | 88008-1 | 2 | 20.00 | la compra se genera correctamente |
