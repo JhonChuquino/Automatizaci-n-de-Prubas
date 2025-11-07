@@ -12,6 +12,8 @@ namespace AutomatizacionPOM.Pages
         private readonly IWebDriver driver;
         private readonly WebDriverWait wait;
         private string tipoRegistroActual;
+        private DateTime? fechaInicialGuardada;
+        private string rucAutorizadoGuardado;
 
         public IngresoEgresosPage(IWebDriver driver)
         {
@@ -21,6 +23,7 @@ namespace AutomatizacionPOM.Pages
                 PollingInterval = TimeSpan.FromMilliseconds(500)
             };
             wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException));
+            fechaInicialGuardada = null;
         }
 
         // ==========================
@@ -49,22 +52,125 @@ namespace AutomatizacionPOM.Pages
         // MÉTODOS DE ACCIÓN
         // ==========================
 
-        public void IngresarFechaInicial(string fecha)
+        public bool IngresarFechaInicial(string fecha)
         {
-            if (fecha == "0") return;
-            var campo = wait.Until(ExpectedConditions.ElementToBeClickable(FechaInicialInput));
-            campo.Clear();
-            campo.SendKeys(fecha);
-            campo.SendKeys(Keys.Tab);
+            if (fecha == "0") return false;
+
+            try
+            {
+                var campo = wait.Until(ExpectedConditions.ElementToBeClickable(FechaInicialInput));
+                campo.Clear();
+                campo.SendKeys(fecha);
+                campo.SendKeys(Keys.Tab);
+
+                // Esperar a que el campo procese la fecha
+                Thread.Sleep(800);
+
+                // Verificar si la fecha fue auto-corregida
+                string valorFinal = campo.GetAttribute("value");
+
+                if (valorFinal != fecha && !string.IsNullOrEmpty(valorFinal))
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"?? FECHA AUTO-CORREGIDA POR EL SISTEMA:");
+                    Console.WriteLine($"   • Fecha ingresada: {fecha}");
+                    Console.WriteLine($"   • Fecha corregida a: {valorFinal}");
+                    Console.WriteLine($"   • Esto indica que '{fecha}' es INVÁLIDA");
+                    Console.ResetColor();
+
+                    // Intentar parsear la fecha corregida
+                    if (DateTime.TryParseExact(valorFinal, "dd/MM/yyyy", null,
+                        System.Globalization.DateTimeStyles.None, out DateTime fechaCorregida))
+                    {
+                        fechaInicialGuardada = fechaCorregida;
+                        Console.WriteLine($"   • Sistema continuará con: {fechaCorregida:dd/MM/yyyy}");
+                    }
+
+                    return true; // Marcar como flujo inválido (fecha fue rechazada)
+                }
+
+                // Si la fecha no cambió, es válida
+                if (DateTime.TryParseExact(fecha, "dd/MM/yyyy", null,
+                    System.Globalization.DateTimeStyles.None, out DateTime fechaParsed))
+                {
+                    fechaInicialGuardada = fechaParsed;
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"? Fecha inicial aceptada: {fechaInicialGuardada:dd/MM/yyyy}");
+                    Console.ResetColor();
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"? Error al ingresar fecha inicial: {ex.Message}");
+                Console.ResetColor();
+                return true;
+            }
         }
 
-        public void IngresarFechaFinal(string fecha)
+        public bool IngresarFechaFinal(string fecha)
         {
-            if (fecha == "0") return;
-            var campo = wait.Until(ExpectedConditions.ElementToBeClickable(FechaFinalInput));
-            campo.Clear();
-            campo.SendKeys(fecha);
-            campo.SendKeys(Keys.Tab);
+            if (fecha == "0") return false;
+
+            try
+            {
+                var campoFinal = wait.Until(ExpectedConditions.ElementToBeClickable(FechaFinalInput));
+
+                // Validar fecha inicial vs final ANTES de ingresar
+                if (fechaInicialGuardada.HasValue &&
+                    DateTime.TryParseExact(fecha, "dd/MM/yyyy", null,
+                        System.Globalization.DateTimeStyles.None, out DateTime fechaFinal))
+                {
+                    if (fechaFinal < fechaInicialGuardada.Value)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"?? Fecha final ({fechaFinal:dd/MM/yyyy}) < Fecha inicial ({fechaInicialGuardada:dd/MM/yyyy})");
+                        Console.ResetColor();
+
+                        // Verificar si el campo está deshabilitado
+                        if (!campoFinal.Enabled)
+                        {
+                            Console.WriteLine("? Campo deshabilitado - Validación correcta del sistema");
+                            return true;
+                        }
+                    }
+                }
+
+                // Ingresar la fecha
+                campoFinal.Clear();
+                campoFinal.SendKeys(fecha);
+                campoFinal.SendKeys(Keys.Tab);
+
+                // Esperar a que el campo procese
+                Thread.Sleep(800);
+
+                // Verificar si fue auto-corregida
+                string valorFinal = campoFinal.GetAttribute("value");
+
+                if (valorFinal != fecha && !string.IsNullOrEmpty(valorFinal))
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"?? FECHA FINAL AUTO-CORREGIDA:");
+                    Console.WriteLine($"   • Fecha ingresada: {fecha}");
+                    Console.WriteLine($"   • Fecha corregida a: {valorFinal}");
+                    Console.ResetColor();
+
+                    return true; // Marcar como flujo inválido
+                }
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"? Fecha final aceptada: {fecha}");
+                Console.ResetColor();
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"? Error al ingresar fecha final: {ex.Message}");
+                return true;
+            }
         }
 
         public bool SeleccionarTipoOperacion(string tipo)
@@ -170,15 +276,30 @@ namespace AutomatizacionPOM.Pages
             }
         }
 
-        public void IngresarRucAutorizado(string ruc)
+        public bool IngresarRucAutorizado(string ruc)
         {
-            if (ruc == "0") return;
+            if (ruc == "0") return false;
 
-            var campo = wait.Until(ExpectedConditions.ElementToBeClickable(RucAutorizado));
-            campo.Clear();
-            campo.SendKeys(ruc);
-            campo.SendKeys(Keys.Enter);
-            Thread.Sleep(1000);
+            try
+            {
+                var campo = wait.Until(ExpectedConditions.ElementToBeClickable(RucAutorizado));
+                campo.Clear();
+                campo.SendKeys(ruc);
+                campo.SendKeys(Keys.Enter);
+                Thread.Sleep(1000);
+
+                // ? Guardar el RUC para validación posterior
+                rucAutorizadoGuardado = ruc;
+                Console.WriteLine($"? RUC del autorizado ingresado: {ruc}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"? Error al ingresar RUC autorizado: {ex.Message}");
+                Console.ResetColor();
+                return true;
+            }
         }
 
         public bool IngresarRucDni(string ruc)
@@ -186,9 +307,24 @@ namespace AutomatizacionPOM.Pages
             if (ruc == "0")
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("RUC del pagador no especificado. Se detiene el flujo para marcar inconsistencia.");
+                Console.WriteLine($"?? RUC del {(tipoRegistroActual == "Egreso" ? "beneficiario" : "pagador")} marcado como '0' - Campo quedará VACÍO");
+                Console.WriteLine("   • Este es un caso de prueba negativo");
+                Console.WriteLine("   • Se espera que el sistema valide campo obligatorio");
                 Console.ResetColor();
-                return true; // flujo inválido
+                return true; // flujo inválido intencional
+            }
+
+            // ? VALIDACIÓN PREVENTIVA: RUC duplicado (solo informativa, NO detiene el flujo)
+            if (!string.IsNullOrEmpty(rucAutorizadoGuardado) && ruc == rucAutorizadoGuardado)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("?? VALIDACIÓN LÓGICA DETECTADA:");
+                Console.WriteLine($"   RUC Autorizado: {rucAutorizadoGuardado}");
+                Console.WriteLine($"   RUC {(tipoRegistroActual == "Egreso" ? "Beneficiario" : "Pagador")}: {ruc}");
+                Console.WriteLine("   ? Ambos RUCs son IGUALES (inconsistencia lógica)");
+                Console.WriteLine("   ? Continuando para probar validación del sistema...");
+                Console.ResetColor();
+                // ?? NO retornamos aquí - dejamos que el sistema valide
             }
 
             try
@@ -202,33 +338,53 @@ namespace AutomatizacionPOM.Pages
                 campo.SendKeys(ruc);
                 campo.SendKeys(Keys.Enter);
                 Thread.Sleep(1000);
-                return false; // flujo válido
+
+                Console.WriteLine($"? RUC del {(tipoRegistroActual == "Egreso" ? "beneficiario" : "pagador")} ingresado: {ruc}");
+                return false; // flujo válido - continúa normalmente
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error al ingresar RUC/DNI: {ex.Message}");
-                return true; // consideramos flujo inválido
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"? Error al ingresar RUC/DNI: {ex.Message}");
+                Console.ResetColor();
+                return true; // error real
             }
         }
 
 
-        public void SeleccionarDocumento(string documento)
+        public bool SeleccionarDocumento(string documento)
         {
-            if (documento == "0") return;
+            if (documento == "0") return true; // Se considera exitoso si no hay selección
 
             try
             {
+                // 1. Clic en la flecha para desplegar el Select2
                 var inputSelect2Arrow = wait.Until(ExpectedConditions.ElementToBeClickable(Select2DocumentoArrow));
                 inputSelect2Arrow.Click();
 
                 Thread.Sleep(500);
+
+                // 2. Definir el localizador para la opción
                 var opcionLocator = By.XPath($"//ul[contains(@id, 'select2') and contains(@id, 'results')]/li[normalize-space(text())='{documento}']");
+
+                // 3. Esperar a que la opción sea clickeable. Si no está, lanza TimeoutException.
                 var opcion = wait.Until(ExpectedConditions.ElementToBeClickable(opcionLocator));
                 opcion.Click();
+                Console.WriteLine($"Documento seleccionado exitosamente: '{documento}'");
+                return true; // Éxito en la selección
+
             }
-            catch
+            catch (WebDriverTimeoutException)
             {
-                Console.WriteLine($"No se pudo seleccionar el documento '{documento}' (Select2 no disponible).");
+                // 4. Capturar la excepción de tiempo de espera (la opción no existe/cargó)
+                Console.WriteLine($"ADVERTENCIA: No se pudo seleccionar el documento '{documento}'. La opción no está disponible o el Select2 falló en cargar.");
+                return false; // Fallo en la selección
+            }
+            catch (Exception ex)
+            {
+                // 5. Capturar otros posibles errores, como que la flecha no sea clickeable
+                Console.WriteLine($"ERROR INESPERADO al seleccionar documento: {ex.Message}");
+                return false;
             }
         }
 
@@ -251,7 +407,8 @@ namespace AutomatizacionPOM.Pages
             Console.WriteLine($"Observación ingresada: '{observacion}'");
         }
 
-        public void HacerClicEnGuardar()
+        // En IngresoEgresosPage.cs
+        public bool HacerClicEnGuardar()
         {
             try
             {
@@ -259,10 +416,17 @@ namespace AutomatizacionPOM.Pages
                 ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", btn);
                 btn.Click();
                 Console.WriteLine(">>> Registro guardado (clic ejecutado)");
+                return true; // ? Retorna true si tuvo éxito
             }
             catch (WebDriverTimeoutException)
             {
                 Console.WriteLine(">>> Botón Guardar no disponible (posible inconsistencia).");
+                return false; // ? Retorna false si falló
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($">>> Error al hacer clic en Guardar: {ex.Message}");
+                return false; // ? Retorna false para cualquier otro error
             }
         }
 
@@ -318,31 +482,158 @@ namespace AutomatizacionPOM.Pages
         {
             try
             {
-                Thread.Sleep(1500); // espera que Angular renderice la tabla
-                var titulos = driver.FindElements(TituloInconsistencia);
-                var mensajes = driver.FindElements(MensajesInconsistencia);
+                Thread.Sleep(2000);
+                bool tieneInconsistencia = false;
 
-                if (titulos.Count > 0 && mensajes.Count > 0)
+                // 1. Buscar mensaje de INCONSISTENCIA(S)
+                try
                 {
-                    Console.WriteLine("Inconsistencias detectadas:");
-                    foreach (var msg in mensajes)
-                        Console.WriteLine("   - " + msg.Text);
-                    return true;
+                    var mensajeInconsistencia = driver.FindElement(
+                        By.XPath("//*[contains(text(),'INCONSISTENCIA') or contains(text(),'Es necesario') or contains(text(),'obligatorio') or contains(text(),'requerido')]"));
+
+                    if (mensajeInconsistencia.Displayed)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"? Mensaje de inconsistencia detectado: {mensajeInconsistencia.Text}");
+                        Console.ResetColor();
+                        tieneInconsistencia = true;
+                    }
+                }
+                catch (NoSuchElementException)
+                {
+                    Console.WriteLine("No se encontró mensaje de INCONSISTENCIA(S)");
                 }
 
-                var btnGuardar = driver.FindElement(BtnGuardar);
-                if (!btnGuardar.Enabled)
+                // 2. Buscar modal de error "Ocurrió un Problema"
+                try
                 {
-                    Console.WriteLine("Botón GUARDAR deshabilitado — inconsistencia detectada sin mensajes visibles.");
-                    return true;
+                    var modalError = driver.FindElement(
+                        By.XPath("//*[contains(text(),'Ocurrió un Problema') or contains(text(),'Error') or contains(text(),'No se ha podido')]"));
+
+                    if (modalError.Displayed)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"? Modal de error detectado: {modalError.Text}");
+                        Console.ResetColor();
+                        tieneInconsistencia = true;
+                    }
+                }
+                catch (NoSuchElementException)
+                {
+                    Console.WriteLine("No se encontró modal 'Ocurrió un Problema'");
                 }
 
-                return false;
+                // 3. Buscar elementos de error por clase CSS
+                try
+                {
+                    var elementosError = driver.FindElements(By.CssSelector(
+                        ".text-danger, .error, .alert-danger, .invalid-feedback, .has-error, [style*='color: red']"));
+
+                    foreach (var elem in elementosError.Where(e => e.Displayed && !string.IsNullOrWhiteSpace(e.Text)))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"? Elemento de error encontrado: {elem.Text}");
+                        Console.ResetColor();
+                        tieneInconsistencia = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error buscando elementos CSS: {ex.Message}");
+                }
+
+                // 4. Verificar si hay campos con borde rojo (validación HTML5)
+                try
+                {
+                    var camposInvalidos = driver.FindElements(By.CssSelector("input:invalid, select:invalid, textarea:invalid"));
+
+                    if (camposInvalidos.Any(c => c.Displayed))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"? Campos inválidos detectados (validación HTML5): {camposInvalidos.Count}");
+                        Console.ResetColor();
+                        tieneInconsistencia = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error verificando campos HTML5: {ex.Message}");
+                }
+
+                // 5. Verificar si el botón GUARDAR está deshabilitado
+                try
+                {
+                    var botonGuardar = driver.FindElement(By.XPath("//button[contains(text(),'GUARDAR')]"));
+                    bool estaDeshabilitado = !botonGuardar.Enabled ||
+                                            botonGuardar.GetAttribute("disabled") != null ||
+                                            botonGuardar.GetAttribute("class").Contains("disabled");
+
+                    if (estaDeshabilitado)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("? Botón GUARDAR está deshabilitado (validación preventiva)");
+                        Console.ResetColor();
+                        tieneInconsistencia = true;
+                    }
+                }
+                catch (NoSuchElementException)
+                {
+                    Console.WriteLine("Botón GUARDAR no encontrado");
+                }
+
+                // 6. NUEVO: Verificar si el modal sigue abierto (timeout del backend)
+                try
+                {
+                    var modalAbierto = driver.FindElement(
+                        By.XPath("//div[@id='modal-registro-ingreso-egreso-varios' and contains(@style,'display: block')]"));
+
+                    if (modalAbierto.Displayed)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("?? TIMEOUT DETECTADO:");
+                        Console.WriteLine("   • Modal aún abierto después de intentar guardar");
+                        Console.WriteLine("   • Backend no respondió o validó sin enviar feedback");
+                        Console.WriteLine("   • Usuario no recibe confirmación ni error");
+                        Console.WriteLine("   • BUG DE UX: Falta comunicación backend ? frontend");
+                        Console.ResetColor();
+
+                        tieneInconsistencia = true;
+                    }
+                }
+                catch (NoSuchElementException)
+                {
+                    Console.WriteLine("Modal cerrado correctamente");
+                }
+
+                return tieneInconsistencia;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error al verificar inconsistencias: " + ex.Message);
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Error en ExisteInconsistencia: {ex.Message}");
+                Console.ResetColor();
                 return false;
+            }
+        }
+
+        // Método para cerrar el modal de error si aparece
+        public void CerrarModalError()
+        {
+            try
+            {
+                var botonOk = wait.Until(driver =>
+                    driver.FindElement(By.XPath("//button[contains(text(),'OK')]")));
+
+                if (botonOk.Displayed)
+                {
+                    botonOk.Click();
+                    Console.WriteLine("Modal de error cerrado");
+                    Thread.Sleep(500);
+                }
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("No hay modal de error para cerrar");
             }
         }
 

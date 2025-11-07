@@ -17,7 +17,7 @@ namespace AutomatizacionPOM.StepDefinitions
             _accessPage = new AccessPage(_driver);  // Inicializamos _accessPage aquí
         }
 
-        [Given(@"el usuario ingresa al ambiente '(.*)'")]
+        [Given(@"el usuario ingresa al ambiente'(.*)'")]
         public void GivenElUsuarioIngresaAlAmbiente(string ambiente)
         {
             try

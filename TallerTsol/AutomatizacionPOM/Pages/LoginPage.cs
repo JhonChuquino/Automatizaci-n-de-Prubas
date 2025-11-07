@@ -23,6 +23,10 @@ namespace AutomatizacionPOM.Pages
         private readonly By TesoreriaField = By.XPath("//span[normalize-space()='Tesorería y Finanzas']");
         private readonly By IngresoField = By.XPath("//a[normalize-space()='Ingresos/Egresos']");
 
+        // Centro de Atencion
+        private readonly By CentroAtencionField = By.XPath("//span[normalize-space()='Centro de Atención']");
+        private readonly By SedeField = By.XPath("//a[normalize-space()='Sede']");
+        //private readonly By SucursalField = By.XPath("//a[normalize-space()='Surcursal']");
         public AccessPage(IWebDriver driver)
         {
             _driver = driver ?? throw new ArgumentNullException(nameof(driver), "El WebDriver no puede ser nulo.");
@@ -70,6 +74,11 @@ namespace AutomatizacionPOM.Pages
                         Console.WriteLine($"Elemento encontrado: {tesoreriaElemento.Text}"); // Mensaje de depuración
                         tesoreriaElemento.Click();
                         break;
+                    case "Centro de Atencion":
+                        var centroAtencionElemento = wait.Until(d => d.FindElement(CentroAtencionField));
+                        Console.WriteLine($"Elemento encontrado: {centroAtencionElemento.Text}"); 
+                        centroAtencionElemento.Click();
+                        break;
                     default:
                         throw new ArgumentException($"El módulo '{_modulo}' no es válido.");
                 }
@@ -91,25 +100,40 @@ namespace AutomatizacionPOM.Pages
 
             try
             {
-                if (_submodulo == "Ingresos/Egresos")
+                By submoduloLocator;
+
+                // Determinar el localizador según el submódulo
+                switch (_submodulo)
                 {
-                    // Esperar a que el enlace sea visible
-                    var submodulo = wait.Until(ExpectedConditions.ElementIsVisible(IngresoField));
-
-                    // Scroll suave al centro
-                    ((IJavaScriptExecutor)_driver).ExecuteScript(
-                        "arguments[0].scrollIntoView({block: 'center'});", submodulo);
-
-                    // Esperar a que sea clickable
-                    var clickable = wait.Until(ExpectedConditions.ElementToBeClickable(IngresoField));
-
-                    // Click con fallback a JS
-                    try { clickable.Click(); }
-                    catch { ((IJavaScriptExecutor)_driver).ExecuteScript("arguments[0].click();", clickable); }
+                    case "Ingresos/Egresos":
+                        submoduloLocator = IngresoField;
+                        break;
+                    case "Sede":
+                        submoduloLocator = SedeField;
+                        break;
+               
+                    default:
+                        throw new ArgumentException($"Submódulo no soportado: {_submodulo}");
                 }
-                else
+
+                // Esperar a que el enlace sea visible
+                var submodulo = wait.Until(ExpectedConditions.ElementIsVisible(submoduloLocator));
+
+                // Scroll suave al centro
+                ((IJavaScriptExecutor)_driver).ExecuteScript(
+                    "arguments[0].scrollIntoView({block: 'center'});", submodulo);
+
+                // Esperar a que sea clickable
+                var clickable = wait.Until(ExpectedConditions.ElementToBeClickable(submoduloLocator));
+
+                // Click con fallback a JS
+                try
                 {
-                    throw new ArgumentException($"Submódulo no soportado: {_submodulo}");
+                    clickable.Click();
+                }
+                catch
+                {
+                    ((IJavaScriptExecutor)_driver).ExecuteScript("arguments[0].click();", clickable);
                 }
             }
             catch (Exception ex)
